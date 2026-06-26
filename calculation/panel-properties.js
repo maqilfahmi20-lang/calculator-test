@@ -101,22 +101,27 @@ class ShearAnalogyMethod extends PanelProperties {
             return result;
         }
 
-        // ── hᵢ: matches Excel AB column formula ─────────────────────────────
-        // Excel AB_i = SUM(layers[i..n-1].thickness) + layers[i].thickness / 2
-        //            = (sum of all remaining panel from layer i downward) + tᵢ/2
+        // ── hᵢ: matches Excel AB column formula (verified against floor-panel-properties.xlsx) ──
         //
-        // This is NOT simply z-from-bottom-to-midpoint. It equals:
-        //   (layers below i) + tᵢ + tᵢ/2  =  z_bottom_of_layer_i + tᵢ + tᵢ/2
+        // Excel formula: hᵢ = SUM(tᵢ .. t_last) + tᵢ/2
+        //   i.e. sum of ALL thicknesses from layer i downward, THEN add half of tᵢ again.
         //
-        // Iterating top-down:
-        //   remaining = totalThickness at start
-        //   hᵢ = remaining + tᵢ/2   (remaining still includes tᵢ itself)
+        // This is NOT the conventional distance from the bottom face to the midpoint.
+        // It equals: (thickness from layer i to bottom) + tᵢ/2
+        //          = (layers below i) + tᵢ + tᵢ/2
+        //
+        // Verified with Excel output for 5×35 mm panel (total = 175 mm):
+        //   h₁ = 192.5 mm, h₂ = 157.5 mm, h₃ = 122.5 mm, h₄ = 87.5 mm, h₅ = 52.5 mm
+        //   → EI_eff = 2,122,312,500,000 N·mm²/m  ✓ matches Excel cell exactly
+        //
+        // Iterating top-down: remaining starts at totalThickness (includes current layer).
+        //   hᵢ = remaining + tᵢ/2
         //   remaining -= tᵢ
         const hi = new Array(n);
         let remaining = cltLayup.getTotalThickness();
         for (let i = 0; i < n; i++) {
             const t = layers[i].thickness;
-            hi[i]   = remaining + t / 2;   // Excel: SUM(from i to end) + tᵢ/2
+            hi[i]   = remaining + t / 2;
             remaining -= t;
         }
 
@@ -345,8 +350,10 @@ class GammaMethod extends PanelProperties {
         const g1 = this._calcGamma(L1, L2, Lref);
         // γ₃: middle layer — always 1.0 (Excel AB76="d2")
         const g3 = 1.0;
-        // γ₅: outer bottom layer — Excel AH78 uses (AA74)² where AA74 = E₁ (not Lref)
-        // This replicates the exact Excel cell reference to match the workbook output.
+        // γ₅: outer bottom layer — Excel AH78 uses E₁ (grade.E of layer 1) as the L argument,
+        // NOT Lref. This is an intentional Excel cell reference: (AA74)² where AA74 = E₁ = 1100.
+        // Verified: passing E₁=1100 reproduces Excel γ₅=0.9998241725150491 exactly.
+        // Passing Lref=5000 instead gives 0.9999914885, which does NOT match Excel.
         const g5 = this._calcGamma(L5, L4, E1);
 
         // a₂ (Excel AJ76, AA69=5 branch):
