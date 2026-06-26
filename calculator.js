@@ -39,10 +39,9 @@ function fmtEI(value) {
 
 /** Scientific notation matching Excel display: 1.43E+12 for large, fixed for small */
 function fmtSci(value) {
-    if (value == null || isNaN(value)) return '0';
-    if (value === 0) return '0.00E+00';
+    if (value == null || isNaN(value)) return '–';
+    if (value === 0) return '0';
     if (Math.abs(value) >= 1e6 || (Math.abs(value) < 0.01 && value !== 0)) {
-        // Format like Excel: 1.43E+12
         const exp = value.toExponential(2).toUpperCase();
         return exp.replace('E+', 'E+').replace('E-', 'E-');
     }
@@ -388,7 +387,25 @@ function renderResult(result, layup, method, spanUsed) {
       </div>`;
 
     // ── Section Properties table (matches Excel left-hand display table) ──────
-    // Columns: [-] | tᵢ (mm) | yᵢ (mm) | θᵢ (°) | Eᵢ,XX (MPa) | hᵢ (mm) | Gᵢ (MPa)
+    // Columns: [-] | tᵢ (mm) | yᵢ (mm) | θᵢ (°) | Eᵢ,XX (MPa) | hᵢ/aᵢ (mm) | Gᵢ (MPa)
+    // Note: for Shear Analogy, the last distance column = hᵢ (Excel AB column)
+    //       for Gamma Method,  the last distance column = aᵢ (eccentricity from neutral axis)
+    const isGamma       = method === 'Gamma';
+    const distColHeader = isGamma
+        ? `a<sub>i</sub><br><small class="fw-normal text-muted">mm</small>`
+        : `h<sub>i</sub><br><small class="fw-normal text-muted">mm</small>`;
+
+    // Compute geometric hᵢ (bottom face to midpoint) for display — independent of method
+    const geomHi = [];
+    {
+        const totalT = layers.reduce((s, l) => s + l.thickness, 0);
+        let cumTop = 0;
+        for (const layer of layers) {
+            geomHi.push(totalT - cumTop - layer.thickness / 2);
+            cumTop += layer.thickness;
+        }
+    }
+
     const sectionPropsHtml = `
       <h6 class="fw-semibold mt-2">Section Properties</h6>
       <div class="table-responsive mb-3">
@@ -400,7 +417,7 @@ function renderResult(result, layup, method, spanUsed) {
               <th>y<sub>i</sub><br><small class="fw-normal text-muted">mm</small></th>
               <th>θ<sub>i</sub><br><small class="fw-normal text-muted">°</small></th>
               <th>E<sub>i,XX</sub><br><small class="fw-normal text-muted">MPa</small></th>
-              <th>h<sub>i</sub><br><small class="fw-normal text-muted">mm</small></th>
+              <th>${distColHeader}</th>
               <th>G<sub>i</sub><br><small class="fw-normal text-muted">MPa</small></th>
             </tr>
           </thead>
@@ -412,6 +429,10 @@ function renderResult(result, layup, method, spanUsed) {
                 let yTop = 0;
                 for (let k = 0; k < i; k++) yTop += layers[k].thickness;
                 const yi = yTop + layer.thickness / 2;
+                // distance column: aᵢ for Gamma (null for cross-layers), hᵢ for Shear Analogy
+                const distVal = isGamma
+                    ? (lp.ai !== null ? fmt(lp.ai, 4) : '–')
+                    : fmt(lp.hi, 1);
                 return `
                   <tr class="text-center ${isCross ? 'table-light text-muted' : ''}">
                     <td class="fw-semibold">T${i + 1}</td>
@@ -419,7 +440,7 @@ function renderResult(result, layup, method, spanUsed) {
                     <td>${fmt(yi, 1)}</td>
                     <td>${layer.orientation}.0</td>
                     <td>${fmt(lp.E, 1)}</td>
-                    <td>${fmt(lp.hi, 1)}</td>
+                    <td>${distVal}</td>
                     <td>${fmt(isCross ? layer.grade.G90 : layer.grade.G, 1)}</td>
                   </tr>`;
             }).join('')}
