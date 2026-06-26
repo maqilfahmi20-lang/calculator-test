@@ -1,4 +1,13 @@
 /**
+ * @file clt-layup-type.js
+ * Depends on: clt-layer-type.js (must be loaded first in index.html)
+ * This is a plain browser script — no ES module imports.
+ * CLTLayerType is defined globally in clt-layer-type.js.
+ */
+
+/* global CLTLayerType */
+
+/**
  * CLTLayupType represents the full CLT panel built from multiple layers.
  * Layers are ordered from top (index 0) to bottom.
  */
